@@ -69,8 +69,6 @@ class Goomba extends Enemy {
 
     let hero = sprites.find((sprite) => sprite instanceof Hero);
 
-    
-
     this.animate();
 
     if (this.isJumpedOnBy(hero)) {
