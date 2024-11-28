@@ -1,6 +1,3 @@
-/*** This class should be temporary until I replace it with the tilemap (or i will make it appear as a blue background only)
- *
- */
 class Background extends Sprite {
   constructor(imageSrc, width, height) {
     super();
@@ -27,7 +24,7 @@ class Background extends Sprite {
         this.backgroundX = this.image.width - this.width;
       }
 
-      // this.audio.play();
+      this.audio.play();
     }
   }
 

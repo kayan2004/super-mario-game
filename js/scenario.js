@@ -1,10 +1,3 @@
-const myGame = new Game();
-var background = new Background("../sprites/background4.png", 401, 240);
-myGame.addSprite(background);
-var hero = new Hero("../sprites/player.png", "../sprites/playerl.png");
-myGame.addSprite(hero);
-// var block = new Block("../sprites/tiles.png", 35, 35, 650, 400);
-
 const blockPositions = [
   [320, 144],
   [352, 144],
@@ -58,29 +51,40 @@ const surpriseBlockPositions = [
   [2080, 80, "coin"],
   [352, 80, "coin"],
 ];
+
+const tubePositions = [
+  [448, 176, 1],
+  [608, 160, 3],
+  [736, 144, 5],
+  [912, 144, 5],
+  [2608, 176, 1],
+  [2864, 176, 1],
+];
+
+const myGame = new Game();
+var background = new Background("../sprites/background4.png", 401, 240);
+var hero = new Hero("../sprites/player.png", "../sprites/playerl.png");
+var score = new Score(10, 30);
+var level = new Level(canvas.width / 2 - 60, 30, 1);
+var lives = new Lives(canvas.width - 135, 30);
 var generateObstacles = new GenerateObstacles(
   blockPositions,
-  surpriseBlockPositions
+  surpriseBlockPositions,
+  tubePositions
 );
-var surpriseBlock = new SurpriseBlock(
-  "../sprites/tiles.png",
-  35,
-  35,
-  541,
-  306,
-  "mushroom"
-);
-var coin = new Coin("../sprites/tiles.png", 35, 35, 200, 400);
 var goomba = new Goomba(
   "../sprites/enemy.png",
   "../sprites/enemyr.png",
-  650,
+  1200,
   200,
   35,
   35
 );
 
-var score = new Score();
+myGame.addSprite(background);
+myGame.addSprite(hero);
+myGame.addSprite(level);
+myGame.addSprite(lives);
 myGame.addSprite(generateObstacles);
 myGame.addSprite(score);
 myGame.addSprite(goomba);

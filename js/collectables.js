@@ -148,7 +148,9 @@ class Mushroom extends Collectable {
 
     let score = sprites.find((sprite) => sprite instanceof Score);
     if (this.isColliding(hero)) {
-      hero.hasJustTookMushroom = true;
+      if (hero.type === "small") {
+        hero.hasJustTookMushroom = true;
+      }
       score.score += 500;
       return true;
     }

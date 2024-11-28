@@ -31,8 +31,9 @@ class Hero extends Sprite {
 
     // animation
     this.timePerFrame = 120;
-    this.transformFrameIndex = 0;
+    this.transformSmallToBigFrameIndex = 0;
     this.runningFrameIndex = 0;
+    this.transformBigToSmallFrameIndex = 0;
     this.lastUpdate = Date.now();
 
     // animation dimensions
@@ -67,8 +68,11 @@ class Hero extends Sprite {
     this.jumpingInitialSpeed = 0.1;
 
     // dying
-    this.isDead = false;
-
+    this.hasJustBeenHit = false;
+    this.deathDuration = 1000;
+    this.deathStartTime = null;
+    this.deathSoundHasPlayed = false;
+    this.deathSound = new Audio("../sounds/mariodie.wav");
     // climbing
     this.isClimbing = false;
 
@@ -88,24 +92,38 @@ class Hero extends Sprite {
 
     // transforming
     this.isTransforming = false;
-    this.transformFrameIndex = 0;
+    this.transformSmallToBigFrameIndex = 0;
 
     this.isFallingFromObstacle = false;
+
+    this.isInvincible = false;
+    this.invincibleDuration = 3000;
+    this.invincibleStartTime = null;
+
+    this.lastHitTime = null;
+    this.hitCooldown = 2000;
+
+    this.hasJustTookMushroom = false;
   }
 
   update(sprites, keys) {
     // console.log("groundLevel", this.groundLevel);
-    console.log(this.type);
-    if (this.type === "small") {
-      this.currentJumpSound = this.jumpSmallSound;
-    } else {
-      this.currentJumpSound = this.jumpBigSound;
-    }
+
+    console.log("hasJustTookMushroom", this.hasJustTookMushroom);
+    console.log("hasJustBeenHit", this.hasJustBeenHit);
+
     if (this.movement !== "sliding") {
       if (keys["ArrowRight"] || (keys["ArrowLeft"] && !this.isTransforming)) {
         this.movement = "running";
       } else if (this.movement !== "transforming") {
         this.movement = "idle";
+      }
+    }
+    if (this.hasJustBeenHit) {
+      if (this.type === "small") {
+        this.movement = "dying";
+      } else if (this.type === "big") {
+        this.movement = "transforming";
       }
     }
     if (this.hasJustTookMushroom && this.type === "small") {
@@ -136,6 +154,12 @@ class Hero extends Sprite {
     }
 
     switch (this.movement) {
+      case "transforming":
+        this.transform();
+        break;
+      case "dying":
+        this.die();
+        break;
       case "idle":
         this.idle();
         break;
@@ -148,21 +172,16 @@ class Hero extends Sprite {
       case "jumping":
         this.jump(keys);
         break;
-      case "transforming":
-        this.transform();
-        break;
     }
 
     // console.log(this.movement);
 
-    // 4. Apply movement based on speed and direction
     if (this.direction === "right") {
       this.x += this.speed;
     } else if (this.direction === "left") {
       this.x -= this.speed;
     }
 
-    // 5. Keep hero within canvas bounds
     if (this.x <= 0) {
       this.x = 0;
     } else if (this.x >= canvas.width / 2 - this.width) {
@@ -186,16 +205,28 @@ class Hero extends Sprite {
     }
   }
 
-  handleVerticalPosition() {}
   transform() {
+    if (this.type === "small") {
+      this.transformSmallToBig();
+    } else if (this.type === "big") {
+      this.transformBigToSmall();
+    }
+  }
+
+  transformBigToSmall() {
+    this.speed = 0;
+    this.hasJustBeenHit = false;
+    this.movement = "idle";
+    this.handleStateChange("small");
+  }
+
+  transformSmallToBig() {
+    this.hasJustTookMushroom = false;
     this.speed = 0;
     this.y = this.GroundY - this.height;
-    if (!this.transformationSoundPlayed) {
-      this.transformationSound.play();
-      this.transformationSoundPlayed = true;
-    }
+    this.transformationSound.play();
     this.animateTransform();
-    switch (this.transformFrameIndex) {
+    switch (this.transformSmallToBigFrameIndex) {
       case 0 || 2:
         this.spriteHeight = 16;
         this.sx = 0;
@@ -210,22 +241,54 @@ class Hero extends Sprite {
         break;
       case 4:
         this.handleStateChange("big");
-        this.hasJustTookMushroom = false;
+        this.movement = "idle";
         break;
       default:
     }
   }
 
+  die() {
+    if (!this.deathStartTime) {
+      this.deathStartTime = Date.now();
+      this.deathDuration = this.deathSound.duration * 1000;
+    }
+    this.deathSound.play();
+
+    this.speed = 0;
+    this.y += 2;
+    this.sx = 176;
+    this.sy = 32;
+
+    if (Date.now() - this.deathStartTime >= this.deathDuration) {
+      this.movement = "idle";
+      this.hasJustBeenHit = false;
+      this.y = this.originalGroundLevel;
+      this.deathStartTime = null;
+    }
+  }
+
   animateTransform() {
     if (Date.now() - this.lastUpdate >= this.timePerFrame) {
-      this.transformFrameIndex = this.transformFrameIndex + 1;
-      if (this.transformFrameIndex >= 4) {
+      this.transformSmallToBigFrameIndex =
+        this.transformSmallToBigFrameIndex + 1;
+      if (this.transformSmallToBigFrameIndex >= 4) {
         this.isTransforming = false;
         this.movement = "idle";
       }
       this.lastUpdate = Date.now();
     }
   }
+
+  // animateTransformBigToSmall() {
+  //   if (Date.now() - this.lastUpdate >= this.timePerFrame) {
+  //     this.transformBigToSmallFrameIndex++;
+  //     if (this.transformBigToSmallFrameIndex >= 3) {
+  //       this.isTransforming = false;
+  //       this.movement = "idle";
+  //     }
+  //     this.lastUpdate = Date.now();
+  //   }
+  // }
 
   run(keys) {
     this.sx = 80 + this.spriteWidth + this.runningFrameIndex * this.spriteWidth;
@@ -302,8 +365,8 @@ class Hero extends Sprite {
     }
 
     if (this.jumping) {
-      this.vy += this.gravity; // Adjust vy with gravity
-      this.y += this.vy; // Move hero vertically
+      this.vy += this.gravity;
+      this.y += this.vy;
     }
     if (this.y >= this.groundLevel) {
       this.vy = 0;
@@ -324,17 +387,13 @@ class Hero extends Sprite {
   }
 
   fall() {
-    console.log("Fall method called");
-    console.log("Vertical velocity (vy):", this.vy);
-    console.log("Current Y position:", this.y);
-    console.log("Ground level:", this.groundLevel);
+    // console.log("Fall method called");
+    // console.log("Vertical velocity (vy):", this.vy);
+    // console.log("Current Y position:", this.y);
+    // console.log("Ground level:", this.groundLevel);
 
-    // Increase the vertical velocity by gravity
     this.vy += this.gravity;
-    // Update the hero's vertical position
     this.y += this.vy;
-
-    // Optional: Add logic to stop falling when hitting the ground
 
     if (this.y > this.groundLevel) {
       console.log("Hit the ground");
@@ -348,12 +407,13 @@ class Hero extends Sprite {
     console.log("handleStateChange", type);
     switch (type) {
       case "small":
+        this.currentJumpSound = this.jumpSmallSound;
+
         this.height = 35;
         this.width = 35;
         this.y = 437 - this.height;
         this.originalGroundLevel = this.y;
         this.groundLevel = this.y;
-        this.stateHasChanged = true;
         this.sy = 32;
         this.spriteHeight = 16;
         this.type = "small";
@@ -364,7 +424,7 @@ class Hero extends Sprite {
         this.y = 437 - this.height;
         this.groundLevel = this.y;
         this.originalGroundLevel = this.y;
-        this.stateHasChanged = false;
+        this.currentJumpSound = this.jumpBigSound;
 
         this.sy = 0;
         this.spriteHeight = 32;
@@ -376,7 +436,8 @@ class Hero extends Sprite {
         this.y = 437 - this.height;
         this.groundLevel = this.y;
         this.originalGroundLevel = this.y;
-        this.stateHasChanged = false;
+        this.currentJumpSound = this.jumpBigSound;
+
         this.sy = 96;
         this.spriteHeight = 32;
         this.type = "Fire";
@@ -422,18 +483,16 @@ class Hero extends Sprite {
     );
   }
 
+  //function to tell from which side of the obstacle the hero is colliding with
   handleCollision(obstacle) {
-    // Calculate the center points
     let heroCenterX = this.x + this.width / 2;
     let heroCenterY = this.y + this.height / 2;
     let obstacleCenterX = obstacle.x + obstacle.width / 2;
     let obstacleCenterY = obstacle.y + obstacle.height / 2;
 
-    // Calculate the distances between centers
     let deltaX = heroCenterX - obstacleCenterX;
     let deltaY = heroCenterY - obstacleCenterY;
 
-    // Calculate overlap on both axes
     let overlapX = this.width / 2 + obstacle.width / 2 - Math.abs(deltaX);
     let overlapY = this.height / 2 + obstacle.height / 2 - Math.abs(deltaY);
 
@@ -463,7 +522,7 @@ class Hero extends Sprite {
 
   handleLandingOnTop(obstacle) {
     console.log("Landed on top of obstacle");
-    this.y = obstacle.y - this.height; // Ensure hero is placed on top
+    this.y = obstacle.y - this.height;
     this.groundLevel = obstacle.y - this.height;
     this.vy = 0;
     this.jumping = false;
