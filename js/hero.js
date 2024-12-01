@@ -15,10 +15,8 @@ class Hero extends Sprite {
     this.currentJumpSound = this.jumpSmallSound;
     this.jumpSoundPlayed = false;
 
-    this.transformationSound = new Audio("../sounds/powerup.wav");
-    this.transformationSoundPlayed = false;
-
-    this.onObstacle = false;
+    this.powerupSound = new Audio("../sounds/powerup.wav");
+    this.powerdownSound = new Audio("../sounds/powerdown.wav");
 
     // dimensions
     this.width = 35;
@@ -93,6 +91,7 @@ class Hero extends Sprite {
     // transforming
     this.isTransforming = false;
     this.transformSmallToBigFrameIndex = 0;
+    this.transformLastUpdate = Date.now();
 
     this.isFallingFromObstacle = false;
 
@@ -101,19 +100,37 @@ class Hero extends Sprite {
     this.invincibleStartTime = null;
 
     this.lastHitTime = null;
-    this.hitCooldown = 2000;
+    this.hitCooldown = 4000;
 
     this.hasJustTookMushroom = false;
+
+    this.levelFinished = false;
+    this.levelFinishedSound = new Audio("../sounds/stage_clear.wav");
+    this.timeBeforeSwitchingLevels = this.levelFinishedSound.duration;
   }
 
   update(sprites, keys) {
-    // console.log("groundLevel", this.groundLevel);
+    if (this.markForRemoval) return true;
 
-    console.log("hasJustTookMushroom", this.hasJustTookMushroom);
-    console.log("hasJustBeenHit", this.hasJustBeenHit);
+    if (this.levelFinished) {
+      let winningArea = sprites.find((sprite) => sprite instanceof WinningArea);
+      winningArea.markForRemoval = true;
+      this.levelFinishedSound.play();
+      let levelGenerator = sprites.find(
+        (sprite) => sprite instanceof LevelGenerator
+      );
+      levelGenerator.level++;
+      console.log("level", levelGenerator.level);
+      this.levelFinished = false;
+      return;
+    }
+    this.animate();
 
     if (this.movement !== "sliding") {
-      if (keys["ArrowRight"] || (keys["ArrowLeft"] && !this.isTransforming)) {
+      if (
+        keys["ArrowRight"] ||
+        (keys["ArrowLeft"] && this.movement !== "transforming")
+      ) {
         this.movement = "running";
       } else if (this.movement !== "transforming") {
         this.movement = "idle";
@@ -126,15 +143,13 @@ class Hero extends Sprite {
         this.movement = "transforming";
       }
     }
-    if (this.hasJustTookMushroom && this.type === "small") {
-      this.movement = "transforming";
-    }
 
     if (
       this.direction === "right" &&
       keys["ArrowLeft"] &&
       this.speed !== 0 &&
-      this.movement !== "sliding"
+      this.movement !== "sliding" &&
+      this.movement !== "transforming"
     ) {
       this.movement = "sliding";
     } else if (
@@ -153,12 +168,15 @@ class Hero extends Sprite {
       this.movement = "jumping";
     }
 
+    if (this.hasJustTookMushroom && this.type === "small") {
+      this.movement = "transforming";
+    }
     switch (this.movement) {
       case "transforming":
         this.transform();
         break;
       case "dying":
-        this.die();
+        this.die(sprites);
         break;
       case "idle":
         this.idle();
@@ -187,7 +205,6 @@ class Hero extends Sprite {
     } else if (this.x >= canvas.width / 2 - this.width) {
       this.x = canvas.width / 2 - this.width;
     }
-    this.animate();
 
     if (
       this.previousObstacle &&
@@ -200,7 +217,7 @@ class Hero extends Sprite {
     }
 
     if (this.isFallingFromObstacle && !this.jumping) {
-      console.log("Falling from obstacle");
+      // console.log("Falling from obstacle");
       this.fall();
     }
   }
@@ -217,20 +234,23 @@ class Hero extends Sprite {
     this.speed = 0;
     this.hasJustBeenHit = false;
     this.movement = "idle";
+    this.powerdownSound.play();
     this.handleStateChange("small");
   }
 
   transformSmallToBig() {
-    this.hasJustTookMushroom = false;
     this.speed = 0;
     this.y = this.GroundY - this.height;
-    this.transformationSound.play();
+    this.powerupSound.play();
     this.animateTransform();
+
     switch (this.transformSmallToBigFrameIndex) {
       case 0 || 2:
         this.spriteHeight = 16;
         this.sx = 0;
         this.sy = 16;
+        break;
+      case 1:
         break;
       case 3:
         this.spriteHeight = 32;
@@ -239,15 +259,14 @@ class Hero extends Sprite {
         this.sx = 320;
         this.sy = 0;
         break;
-      case 4:
-        this.handleStateChange("big");
-        this.movement = "idle";
-        break;
       default:
+        this.movement = "idle";
+        this.handleStateChange("big");
+        this.hasJustTookMushroom = false;
     }
   }
 
-  die() {
+  die(sprites) {
     if (!this.deathStartTime) {
       this.deathStartTime = Date.now();
       this.deathDuration = this.deathSound.duration * 1000;
@@ -260,6 +279,10 @@ class Hero extends Sprite {
     this.sy = 32;
 
     if (Date.now() - this.deathStartTime >= this.deathDuration) {
+      let levelGenerator = sprites.find(
+        (sprite) => sprite instanceof LevelGenerator
+      );
+      levelGenerator.lives--;
       this.movement = "idle";
       this.hasJustBeenHit = false;
       this.y = this.originalGroundLevel;
@@ -268,27 +291,16 @@ class Hero extends Sprite {
   }
 
   animateTransform() {
-    if (Date.now() - this.lastUpdate >= this.timePerFrame) {
+    // console.log("transformFrameIndex", this.transformSmallToBigFrameIndex);
+    if (Date.now() - this.transformLastUpdate >= this.timePerFrame) {
       this.transformSmallToBigFrameIndex =
         this.transformSmallToBigFrameIndex + 1;
       if (this.transformSmallToBigFrameIndex >= 4) {
-        this.isTransforming = false;
-        this.movement = "idle";
+        this.transformSmallToBigFrameIndex = 0;
       }
-      this.lastUpdate = Date.now();
+      this.transformLastUpdate = Date.now();
     }
   }
-
-  // animateTransformBigToSmall() {
-  //   if (Date.now() - this.lastUpdate >= this.timePerFrame) {
-  //     this.transformBigToSmallFrameIndex++;
-  //     if (this.transformBigToSmallFrameIndex >= 3) {
-  //       this.isTransforming = false;
-  //       this.movement = "idle";
-  //     }
-  //     this.lastUpdate = Date.now();
-  //   }
-  // }
 
   run(keys) {
     this.sx = 80 + this.spriteWidth + this.runningFrameIndex * this.spriteWidth;
@@ -396,7 +408,7 @@ class Hero extends Sprite {
     this.y += this.vy;
 
     if (this.y > this.groundLevel) {
-      console.log("Hit the ground");
+      // console.log("Hit the ground");
       this.y = this.groundLevel;
       this.isFallingFromObstacle = false;
       this.vy = 0;
@@ -404,7 +416,8 @@ class Hero extends Sprite {
   }
 
   handleStateChange(type) {
-    console.log("handleStateChange", type);
+    // console.log("handleStateChange", type);
+    this.hasJustTookMushroom = false;
     switch (type) {
       case "small":
         this.currentJumpSound = this.jumpSmallSound;
@@ -521,7 +534,7 @@ class Hero extends Sprite {
   }
 
   handleLandingOnTop(obstacle) {
-    console.log("Landed on top of obstacle");
+    // console.log("Landed on top of obstacle");
     this.y = obstacle.y - this.height;
     this.groundLevel = obstacle.y - this.height;
     this.vy = 0;
@@ -532,5 +545,59 @@ class Hero extends Sprite {
     this.y = obstacle.y + obstacle.height;
     this.vy = 0;
     obstacle.isCollidedFromBelow = true;
+  }
+
+  reset() {
+    this.type = "small";
+    this.height = 35;
+    this.width = 35;
+    this.x = 0;
+    this.y = this.GroundY - this.height;
+    this.speed = 0;
+    this.movement = "idle";
+    this.currentJumpSound = this.jumpSmallSound;
+
+    this.originalGroundLevel = this.y;
+    this.groundLevel = this.y;
+    this.sy = 32;
+    this.spriteHeight = 16;
+  }
+}
+
+class WinningArea extends Sprite {
+  constructor(x, y, width, height) {
+    super();
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.currentImage = new Image();
+    this.currentImage.src = "../sprites/player.png";
+  }
+
+  update(sprites, keys) {
+    if (this.markForRemoval) return true;
+    let hero = sprites.find((sprite) => sprite instanceof Hero);
+    if (hero.direction === "right") {
+      this.x -= 2 * hero.speed;
+    }
+    if (this.isColliding(hero)) {
+      // console.log("Winning area collided with hero");
+      hero.levelFinished = true;
+    }
+  }
+
+  isColliding(sprite) {
+    return (
+      this.x < sprite.x + sprite.width &&
+      this.x + this.width > sprite.x &&
+      this.y < sprite.y + sprite.height &&
+      this.y + this.height > sprite.y
+    );
+  }
+
+  draw(ctx) {
+    ctx.fillStyle = "rgba(0, 255, 0, 0.5)"; // Semi-transparent green
+    ctx.fillRect(this.x, this.y, this.width, this.height);
   }
 }

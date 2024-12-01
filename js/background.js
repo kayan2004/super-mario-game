@@ -11,6 +11,7 @@ class Background extends Sprite {
   }
 
   update(sprites, keys) {
+    if (this.markForRemoval) return true;
     let hero = sprites.find((sprite) => sprite instanceof Hero);
 
     if (hero) {
@@ -24,7 +25,7 @@ class Background extends Sprite {
         this.backgroundX = this.image.width - this.width;
       }
 
-      this.audio.play();
+      // this.audio.play();
     }
   }
 

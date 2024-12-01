@@ -1,6 +1,7 @@
 class Obstacle extends Sprite {
   constructor(spritesheet, width, height, x, y) {
     super();
+    this.markForRemoval = false;
     this.image = new Image();
     this.image.src = spritesheet;
     this.width = width;
@@ -13,6 +14,8 @@ class Obstacle extends Sprite {
   }
 
   update(sprites, keys) {
+    if (this.markForRemoval) return true;
+
     let hero = sprites.find((sprite) => sprite instanceof Hero);
     if (hero) {
       if (this.checkCollision(hero)) {
@@ -64,8 +67,11 @@ class Block extends Obstacle {
 
   update(sprites, keys) {
     super.update(sprites, keys);
+    if (this.markForRemoval) return true;
     let hero = sprites.find((sprite) => sprite instanceof Hero);
-    let score = sprites.find((sprite) => sprite instanceof Score);
+    let levelGenerator = sprites.find(
+      (sprite) => sprite instanceof LevelGenerator
+    );
 
     if (hero) {
       if (hero.direction === "right" && hero.isRunning) {
@@ -73,7 +79,7 @@ class Block extends Obstacle {
       }
 
       if (this.isCollidedFromBelow) {
-        score.score += 50;
+        levelGenerator.score += 50;
         this.sound.play();
         return true;
       }
@@ -116,6 +122,7 @@ class SurpriseBlock extends Obstacle {
 
   update(sprites, keys) {
     super.update(sprites, keys);
+    if (this.markForRemoval) return true;
     if (this.hasBecameSolid) {
       return;
     }
@@ -204,13 +211,16 @@ class Tube extends Obstacle {
 
   update(sprites, keys) {
     super.update(sprites, keys);
+    if (this.markForRemoval) return true;
+    // Iterate over all sprites and filter out the enemies
+    let enemies = sprites.filter((sprite) => sprite instanceof Enemy);
 
-    let enemy = sprites.find((sprite) => sprite instanceof Enemy);
-    if (enemy) {
+    // Check collision for each enemy
+    enemies.forEach((enemy) => {
       if (this.checkCollision(enemy)) {
         enemy.handleCollisionWithTube();
       }
-    }
+    });
   }
 
   draw(ctx) {
@@ -254,6 +264,7 @@ class GenerateObstacles extends Sprite {
   }
 
   update(sprites, keys) {
+    if (this.markForRemoval) return true;
     // Loop through the array of positions to add new block sprites
     if (this.isInitialized) return;
     this.blockPositions.forEach(([x, y]) => {

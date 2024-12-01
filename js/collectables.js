@@ -8,9 +8,12 @@ class Collectable extends Sprite {
     this.height = height;
     this.x = x;
     this.y = y;
+
+    this.markForRemoval = false;
   }
 
   update(sprites, keys) {
+    if (this.markForRemoval) return true;
     let hero = sprites.find((sprite) => sprite instanceof Hero);
 
     if (hero.direction === "right") {
@@ -65,10 +68,12 @@ class Coin extends Collectable {
       this.x -= 2 * hero.speed;
     }
 
-    let score = sprites.find((sprite) => sprite instanceof Score);
+    let levelGenerator = sprites.find(
+      (sprite) => sprite instanceof LevelGenerator
+    );
 
     if (this.soundPlayed && this.sound.currentTime >= this.sound.duration) {
-      score.score += 100;
+      levelGenerator.score += 100;
       return true;
     }
 
@@ -134,6 +139,8 @@ class Mushroom extends Collectable {
   update(sprites, keys) {
     super.update(sprites, keys);
 
+    if (this.markForRemoval) return true;
+
     if (!this.soundPlayed) {
       this.appearSound.play();
       this.soundPlayed = true;
@@ -146,12 +153,14 @@ class Mushroom extends Collectable {
       this.fall();
     }
 
-    let score = sprites.find((sprite) => sprite instanceof Score);
+    let levelGenerator = sprites.find(
+      (sprite) => sprite instanceof LevelGenerator
+    );
     if (this.isColliding(hero)) {
       if (hero.type === "small") {
         hero.hasJustTookMushroom = true;
       }
-      score.score += 500;
+      levelGenerator.score += 500;
       return true;
     }
 
@@ -196,14 +205,10 @@ class Mushroom extends Collectable {
   }
 
   fall() {
-    // Increase the vertical velocity by gravity
     this.vy += this.gravity;
-    // Update the hero's vertical position
     this.y += this.vy;
 
-    // Optional: Add logic to stop falling when hitting the ground
     if (this.y > this.groundLevel) {
-      // assuming groundLevel is defined
       this.y = this.groundLevel;
       this.vy = 0;
     }

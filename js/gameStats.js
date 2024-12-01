@@ -1,12 +1,29 @@
-class Score extends Sprite {
+class GameStats extends Sprite {
   constructor(x, y) {
     super();
-    this.score = 0;
     this.x = x;
     this.y = y;
+    this.markForRemoval = false;
   }
 
-  update(sprites, keys) {}
+  update(sprites, keys) {
+    if (this.markForRemoval) {
+      return true;
+    }
+  }
+}
+
+class Score extends GameStats {
+  constructor(x, y) {
+    super(x, y);
+    this.score = 0;
+  }
+
+  update(sprites, keys) {
+    if (this.markForRemoval) {
+      return true;
+    }
+  }
 
   draw(ctx) {
     ctx.font = "italic bold 30px 'Comic Sans MS'";
@@ -15,15 +32,31 @@ class Score extends Sprite {
   }
 }
 
-class Lives extends Sprite {
+class Lives extends GameStats {
   constructor(x, y) {
-    super();
+    super(x, y);
     this.lives = 3;
-    this.x = x;
-    this.y = y;
   }
 
-  update(sprites, keys) {}
+  update(sprites, keys) {
+    if (this.markForRemoval) {
+      return true;
+    }
+
+    let levelGenerator = sprites.find(
+      (sprite) => sprite instanceof LevelGenerator
+    );
+
+    this.lives = levelGenerator.lives;
+
+    // if (this.lives <= 0) {
+    //   let levelGenerator = sprites.find(
+    //     (sprite) => sprite instanceof LevelGenerator
+    //   );
+    //   console.log(sprites);
+    //   levelGenerator.gameOver = true;
+    // }
+  }
 
   draw(ctx) {
     ctx.font = "italic bold 30px 'Comic Sans MS'";
@@ -32,15 +65,22 @@ class Lives extends Sprite {
   }
 }
 
-class Level extends Sprite {
+class Level extends GameStats {
   constructor(x, y, level) {
-    super();
+    super(x, y);
     this.level = level;
-    this.x = x;
-    this.y = y;
   }
 
-  update(sprites, keys) {}
+  update(sprites, keys) {
+    if (this.markForRemoval) {
+      return true;
+    }
+
+    // let generateLevel = sprites.find((sprite) => sprite instanceof GenerateLevel);
+    // if (generateLevel) {
+    //   this.level = generateLevel.level;
+    // }
+  }
 
   draw(ctx) {
     ctx.font = "italic bold 30px 'Comic Sans MS'";
