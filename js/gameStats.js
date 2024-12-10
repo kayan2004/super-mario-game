@@ -1,12 +1,15 @@
 class GameStats extends Sprite {
   constructor(x, y) {
     super();
+    // Position
     this.x = x;
     this.y = y;
+    // Flag to indicate if the sprite should be removed
     this.markForRemoval = false;
   }
 
   update(sprites, keys) {
+    // If the sprite is marked for removal, remove it
     if (this.markForRemoval) {
       return true;
     }
@@ -16,10 +19,15 @@ class GameStats extends Sprite {
 class Score extends GameStats {
   constructor(x, y) {
     super(x, y);
+
+    // Text
+    this.text = "Score";
+    // Score
     this.score = 0;
   }
 
   update(sprites, keys) {
+    // If the sprite is marked for removal, remove it
     if (this.markForRemoval) {
       return true;
     }
@@ -28,34 +36,30 @@ class Score extends GameStats {
   draw(ctx) {
     ctx.font = "italic bold 30px 'Comic Sans MS'";
     ctx.fillStyle = "white";
-    ctx.fillText("Score: " + this.score, this.x, this.y);
+    ctx.fillText(this.text + ": " + this.score, this.x, this.y);
   }
 }
 
 class Lives extends GameStats {
   constructor(x, y) {
     super(x, y);
+    // Lives
     this.lives = 3;
   }
 
   update(sprites, keys) {
+    // If the sprite is marked for removal, remove it
     if (this.markForRemoval) {
       return true;
     }
 
+    // Find the level generator sprite
     let levelGenerator = sprites.find(
       (sprite) => sprite instanceof LevelGenerator
     );
 
+    // Update the lives based on the level generator
     this.lives = levelGenerator.lives;
-
-    // if (this.lives <= 0) {
-    //   let levelGenerator = sprites.find(
-    //     (sprite) => sprite instanceof LevelGenerator
-    //   );
-    //   console.log(sprites);
-    //   levelGenerator.gameOver = true;
-    // }
   }
 
   draw(ctx) {
@@ -68,18 +72,15 @@ class Lives extends GameStats {
 class Level extends GameStats {
   constructor(x, y, level) {
     super(x, y);
+    // Level
     this.level = level;
   }
 
   update(sprites, keys) {
+    // If the sprite is marked for removal, remove it
     if (this.markForRemoval) {
       return true;
     }
-
-    // let generateLevel = sprites.find((sprite) => sprite instanceof GenerateLevel);
-    // if (generateLevel) {
-    //   this.level = generateLevel.level;
-    // }
   }
 
   draw(ctx) {

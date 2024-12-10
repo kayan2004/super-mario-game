@@ -9,29 +9,19 @@ class Hero extends Sprite {
     this.playerl.src = imagePath2;
     this.currentSpriteSheet = this.player;
 
-    //sounds
-    this.jumpSmallSound = new Audio("../sounds/jump-small.wav");
-    this.jumpBigSound = new Audio("../sounds/jump-super.wav");
-    this.currentJumpSound = this.jumpSmallSound;
-    this.jumpSoundPlayed = false;
-
-    this.powerupSound = new Audio("../sounds/powerup.wav");
-    this.powerdownSound = new Audio("../sounds/powerdown.wav");
-
     // dimensions
     this.width = 35;
     this.height = 35;
 
     // position
-    this.GroundY = 437;
+    this.groundY = 437;
     this.x = 0;
-    this.y = this.GroundY - this.height;
+    this.y = this.groundY - this.height;
 
     // animation
     this.timePerFrame = 120;
     this.transformSmallToBigFrameIndex = 0;
     this.runningFrameIndex = 0;
-    this.transformBigToSmallFrameIndex = 0;
     this.lastUpdate = Date.now();
 
     // animation dimensions
@@ -40,18 +30,15 @@ class Hero extends Sprite {
     this.spriteHeight = 16;
     this.spriteWidth = 16;
 
-    // movement
+    // state
     this.speed = 0;
     this.initialSpeed = 0.5;
     this.maxSpeed = 2;
     this.deceleration = 0.98;
     this.acceleration = 1.02;
-    this.isRunning = false;
     this.direction = "right";
 
     // sliding
-    this.isSliding = false;
-    this.slidingFrames = 0;
     this.slidingDeceleration = 0.97;
 
     // type
@@ -60,10 +47,12 @@ class Hero extends Sprite {
     // jumping
     this.vy = 0;
     this.gravity = 0.25;
-    this.isJumping = false;
-    this.jumpingHadEnded = false;
-    this.jumpingDeceleration = 0.991;
-    this.jumpingInitialSpeed = 0.1;
+    this.vyHasBeenSet = false;
+    this.isJumpingDeceleration = 0.991;
+    this.jumpSmallSound = new Audio("../sounds/jump-small.wav");
+    this.jumpBigSound = new Audio("../sounds/jump-super.wav");
+    this.currentJumpSound = this.jumpSmallSound;
+    this.jumpSoundPlayed = false;
 
     // dying
     this.hasJustBeenHit = false;
@@ -71,107 +60,142 @@ class Hero extends Sprite {
     this.deathStartTime = null;
     this.deathSoundHasPlayed = false;
     this.deathSound = new Audio("../sounds/mariodie.wav");
-    // climbing
-    this.isClimbing = false;
 
     // states
-    this.movement = "idle";
-    this.jumping = false;
+    this.state = "idle";
+    this.isJumping = false;
 
-    // Collision flag
-    this.isBlocked = false;
-
-    this.slidingDirection = "right";
-
-    // Original ground level
-    this.originalGroundLevel = this.y;
+    // Ground level
+    this.originalGroundLevel = this.groundY - this.height;
     this.groundLevel = this.originalGroundLevel;
+    this.isFallingFromObstacle = false;
     this.previousObstacle = null;
 
     // transforming
-    this.isTransforming = false;
     this.transformSmallToBigFrameIndex = 0;
     this.transformLastUpdate = Date.now();
+    this.powerupSound = new Audio("../sounds/powerup.wav");
+    this.powerdownSound = new Audio("../sounds/powerdown.wav");
+    this.hasJustTookMushroom = false;
 
-    this.isFallingFromObstacle = false;
-
-    this.isInvincible = false;
-    this.invincibleDuration = 3000;
-    this.invincibleStartTime = null;
-
+    // hit
     this.lastHitTime = null;
     this.hitCooldown = 4000;
 
-    this.hasJustTookMushroom = false;
-
+    // level
     this.levelFinished = false;
     this.levelFinishedSound = new Audio("../sounds/stage_clear.wav");
-    this.timeBeforeSwitchingLevels = this.levelFinishedSound.duration;
   }
 
   update(sprites, keys) {
+    // Check if the hero is marked for removal, if so, remove it.
     if (this.markForRemoval) return true;
 
+    // Handle level completion
     if (this.levelFinished) {
-      let winningArea = sprites.find((sprite) => sprite instanceof WinningArea);
-      winningArea.markForRemoval = true;
+      // Play the level completion sound
       this.levelFinishedSound.play();
+
+      // Find the LevelGenerator sprite and increment its level
       let levelGenerator = sprites.find(
         (sprite) => sprite instanceof LevelGenerator
       );
       levelGenerator.level++;
-      console.log("level", levelGenerator.level);
+
+      // Reset the levelFinished flag
       this.levelFinished = false;
       return;
     }
-    this.animate();
 
-    if (this.movement !== "sliding") {
-      if (
-        keys["ArrowRight"] ||
-        (keys["ArrowLeft"] && this.movement !== "transforming")
-      ) {
-        this.movement = "running";
-      } else if (this.movement !== "transforming") {
-        this.movement = "idle";
-      }
+    // Ensure the hero's x position stays within the left canvas boundary
+    if (this.x <= 0) {
+      this.x = 0;
     }
-    if (this.hasJustBeenHit) {
-      if (this.type === "small") {
-        this.movement = "dying";
-      } else if (this.type === "big") {
-        this.movement = "transforming";
-      }
+    // Ensure the hero's x position doesn't exceed the middle of the canvas' width
+    else if (this.x >= canvas.width / 2 - this.width) {
+      this.x = canvas.width / 2 - this.width;
+    }
+    // this.animateRunning();
+
+    // Move the hero based on the current direction and speed
+    if (this.direction === "right") {
+      this.x += this.speed;
+    } else if (this.direction === "left") {
+      this.x -= this.speed;
     }
 
+    // Update the state if the hero is not sliding, transforming, or dying.
     if (
-      this.direction === "right" &&
-      keys["ArrowLeft"] &&
-      this.speed !== 0 &&
-      this.movement !== "sliding" &&
-      this.movement !== "transforming"
+      this.state !== "sliding" &&
+      this.state !== "transforming" &&
+      this.state !== "dying"
     ) {
-      this.movement = "sliding";
-    } else if (
-      this.direction === "left" &&
-      this.speed !== 0 &&
-      keys["ArrowRight"] &&
-      this.movement !== "sliding"
-    ) {
-      this.movement = "sliding";
-    }
-    if (keys[" "]) {
-      this.jumping = true;
+      // If the right or left arrow key is pressed, set the state to running.
+      if (keys["ArrowRight"] || keys["ArrowLeft"]) {
+        this.state = "running";
+      }
+      // If no arrow key is pressed, set the state to idle.
+      else {
+        this.state = "idle";
+      }
     }
 
-    if (this.jumping) {
-      this.movement = "jumping";
+    // Check if the hero has just been hit
+    if (this.hasJustBeenHit) {
+      // If the hero is small, set the state to dying
+      if (this.type === "small") {
+        this.state = "dying";
+      }
+      // Otherwise, set the state to transforming
+      else {
+        this.state = "transforming";
+      }
     }
 
+    // Check if the hero should start sliding
+    if (
+      ((this.direction === "right" && keys["ArrowLeft"]) ||
+        (this.direction === "left" && keys["ArrowRight"])) &&
+      this.speed !== 0 &&
+      this.state !== "transforming" &&
+      this.state !== "dying"
+    ) {
+      this.state = "sliding";
+    }
+
+    // Check if the space key is pressed to initiate jumping
+    if (keys[" "] && this.state !== "dying") {
+      this.isJumping = true;
+    }
+
+    // If the hero is jumping, update the state to "jumping"
+    if (this.isJumping) {
+      this.state = "jumping";
+    }
+
+    // Check if the hero has just taken a mushroom and is currently small,
+    // if so, set the state to transforming
     if (this.hasJustTookMushroom && this.type === "small") {
-      this.movement = "transforming";
+      this.state = "transforming";
     }
-    switch (this.movement) {
+
+    // Check if the hero is falling from an obstacle
+    if (
+      this.previousObstacle &&
+      (this.x >= this.previousObstacle.x + this.previousObstacle.width ||
+        this.x <= this.previousObstacle.x)
+    ) {
+      this.isFallingFromObstacle = true;
+      this.groundLevel = this.originalGroundLevel;
+      this.previousObstacle = null;
+    }
+
+    // If the hero is falling from an obstacle and not jumping, call the fall method
+    if (this.isFallingFromObstacle && !this.isJumping) {
+      this.fall();
+    }
+    // Update the hero based on the current state
+    switch (this.state) {
       case "transforming":
         this.transform();
         break;
@@ -191,59 +215,55 @@ class Hero extends Sprite {
         this.jump(keys);
         break;
     }
-
-    // console.log(this.movement);
-
-    if (this.direction === "right") {
-      this.x += this.speed;
-    } else if (this.direction === "left") {
-      this.x -= this.speed;
-    }
-
-    if (this.x <= 0) {
-      this.x = 0;
-    } else if (this.x >= canvas.width / 2 - this.width) {
-      this.x = canvas.width / 2 - this.width;
-    }
-
-    if (
-      this.previousObstacle &&
-      (this.x >= this.previousObstacle.x + this.previousObstacle.width ||
-        this.x <= this.previousObstacle.x)
-    ) {
-      this.isFallingFromObstacle = true;
-      this.groundLevel = this.originalGroundLevel;
-      this.previousObstacle = null;
-    }
-
-    if (this.isFallingFromObstacle && !this.jumping) {
-      // console.log("Falling from obstacle");
-      this.fall();
-    }
   }
 
+  /**
+   * Transforms the hero's state between small and big.
+   * If the hero is currently small, it will call the transformSmallToBig method.
+   * If the hero is currently big, it will call the transformBigToSmall method.
+   */
   transform() {
     if (this.type === "small") {
       this.transformSmallToBig();
-    } else if (this.type === "big") {
+    } else {
       this.transformBigToSmall();
     }
   }
 
+  /**
+   * Transforms the hero from big to small.
+   * This method is called when the hero gets hit while in the big state.
+   * It resets the hero's speed, sets the state to idle, plays the powerdown sound,
+   * and handles the state change to small.
+   */
   transformBigToSmall() {
     this.speed = 0;
     this.hasJustBeenHit = false;
-    this.movement = "idle";
+    this.state = "idle";
     this.powerdownSound.play();
-    this.handleStateChange("small");
+    this.handleTypeChange("small");
   }
 
+  /**
+   * Transforms the hero from small to big.
+   * This method is called when the hero takes a mushroom while in the small state.
+   * It resets the hero's speed, adjusts the hero's position, plays the powerup sound,
+   * and animates the transformation.
+   */
   transformSmallToBig() {
-    this.speed = 0;
-    this.y = this.GroundY - this.height;
-    this.powerupSound.play();
-    this.animateTransform();
+    // Animate the transformation
+    this.animateTransformSmallToBig();
 
+    // Reset the hero's speed to 0
+    this.speed = 0;
+
+    // Adjust the hero's y position to be on the grounda
+    this.y = this.groundY - this.height;
+
+    // Play the powerup sound
+    this.powerupSound.play();
+
+    // Handle the different frames of the transformation animation
     switch (this.transformSmallToBigFrameIndex) {
       case 0 || 2:
         this.spriteHeight = 16;
@@ -251,6 +271,7 @@ class Hero extends Sprite {
         this.sy = 16;
         break;
       case 1:
+        // No changes for the second frame
         break;
       case 3:
         this.spriteHeight = 32;
@@ -260,12 +281,20 @@ class Hero extends Sprite {
         this.sy = 0;
         break;
       default:
-        this.movement = "idle";
-        this.handleStateChange("big");
+        // Set the state to idle and handle the state change to big
+        this.state = "idle";
+        this.handleTypeChange("big");
         this.hasJustTookMushroom = false;
     }
   }
 
+  /**
+   * Handles the hero's death sequence.
+   * Plays the death sound, updates the hero's position, and manages the death duration.
+   * After the death duration, decreases the level generator's lives and resets the hero's state.
+   *
+   * @param {Array} sprites - The array of all sprites in the game.
+   */
   die(sprites) {
     if (!this.deathStartTime) {
       this.deathStartTime = Date.now();
@@ -274,27 +303,36 @@ class Hero extends Sprite {
     this.deathSound.play();
 
     this.speed = 0;
+
+    // Simulate the hero falling down to death
     this.y += 2;
+
+    // Set the sprite sheet to the death sprite
     this.sx = 176;
     this.sy = 32;
 
+    // Check if the death duration has passed
     if (Date.now() - this.deathStartTime >= this.deathDuration) {
+      // Find the level generator sprite and decrease its lives
       let levelGenerator = sprites.find(
         (sprite) => sprite instanceof LevelGenerator
       );
       levelGenerator.lives--;
-      this.movement = "idle";
+      this.state = "idle";
       this.hasJustBeenHit = false;
       this.y = this.originalGroundLevel;
       this.deathStartTime = null;
     }
   }
 
-  animateTransform() {
-    // console.log("transformFrameIndex", this.transformSmallToBigFrameIndex);
+  /**
+   * Animates the transformation of the hero from small to big.
+   * Updates the frame index based on the time per frame.
+   * Resets the frame index if it exceeds the number of frames.
+   */
+  animateTransformSmallToBig() {
     if (Date.now() - this.transformLastUpdate >= this.timePerFrame) {
-      this.transformSmallToBigFrameIndex =
-        this.transformSmallToBigFrameIndex + 1;
+      this.transformSmallToBigFrameIndex++;
       if (this.transformSmallToBigFrameIndex >= 4) {
         this.transformSmallToBigFrameIndex = 0;
       }
@@ -302,23 +340,34 @@ class Hero extends Sprite {
     }
   }
 
+  /**
+   * Updates the hero's running state.
+   * Sets the sprite sheet to the running sprite based on the direction.
+   * Adjusts the hero's speed based on the acceleration and max speed.
+   *
+   * @param {Object} keys - The object containing the current state of the keys.
+   */
   run(keys) {
+    this.animateRunning();
+    // Calculate the sprite's x-coordinate for the running animation
     this.sx = 80 + this.spriteWidth + this.runningFrameIndex * this.spriteWidth;
-    this.move(keys);
-  }
 
-  move(keys) {
+    // Set the direction based on key input
     if (keys["ArrowRight"]) {
       this.direction = "right";
     } else if (keys["ArrowLeft"]) {
       this.direction = "left";
     }
 
+    // Initialize speed if it's zero
     if (this.speed === 0) {
       this.speed = this.initialSpeed;
     }
+
+    // Update speed with acceleration, ensuring it doesn't exceed max speed
     this.speed = Math.min(this.speed * this.acceleration, this.maxSpeed);
 
+    // Set the current sprite sheet based on the direction
     if (this.direction === "right") {
       this.currentSpriteSheet = this.player;
     } else {
@@ -326,37 +375,53 @@ class Hero extends Sprite {
     }
   }
 
+  /**
+   * Manages the hero's idle state.
+   */
   idle() {
+    // Apply deceleration to reduce speed if moving
     if (this.speed > 0) {
+      this.animateRunning();
       this.speed *= this.deceleration;
+      // Update sprite's x-coordinate for idle animation
       this.sx =
         80 + this.spriteWidth + this.runningFrameIndex * this.spriteWidth;
 
+      // Set speed to zero if below initial speed
       if (this.speed < this.initialSpeed) {
         this.speed = 0;
       }
     }
+    // Set sprite's x-coordinate to idle position if completely idle
     if (this.speed === 0) {
       this.sx = 80;
     }
 
+    // Update sprite sheet based on direction
     if (this.direction === "right") {
       this.currentSpriteSheet = this.player;
     } else {
       this.currentSpriteSheet = this.playerl;
     }
   }
-
+  /**
+   * Manages the hero's sliding state.
+   */
   slide() {
+    // Check if the hero is moving
     if (this.speed > 0) {
+      // Set the sprite's x-coordinate for sliding animation
       this.sx = 144;
+      // Apply sliding deceleration to reduce speed
       this.speed *= this.slidingDeceleration;
 
+      // If speed drops below initial speed, stop sliding and switch to running state
       if (this.speed < this.initialSpeed) {
         this.speed = 0;
-        this.movement = "running";
+        this.state = "running";
       }
     }
+    // Update sprite sheet based on direction
     if (this.direction === "right") {
       this.currentSpriteSheet = this.playerl;
     } else {
@@ -364,107 +429,144 @@ class Hero extends Sprite {
     }
   }
 
+  /**
+   * Handles the hero's jump action.
+   *
+   * @param {Object} keys - The current state of input keys.
+   *
+   * This method manages the jump mechanics of the hero, including the
+   * vertical velocity, jump sound, and state transitions. It also
+   * applies deceleration to the hero's speed while jumping.
+   */
   jump(keys) {
+    // Set the sprite's x-coordinate for jumping animation
     this.sx = 160;
+
+    // Play jump sound if it hasn't been played yet
     if (!this.jumpSoundPlayed) {
       this.currentJumpSound.play();
       this.jumpSoundPlayed = true;
     }
 
-    if (!this.isJumping) {
+    // Initialize vertical velocity if not set
+    if (!this.vyHasBeenSet) {
       this.vy = -8.5;
-      this.isJumping = true;
+      this.vyHasBeenSet = true;
     }
 
-    if (this.jumping) {
+    // Update vertical position and velocity
+    if (this.isJumping) {
       this.vy += this.gravity;
       this.y += this.vy;
     }
+
+    // Check if the hero has landed on the ground
     if (this.y >= this.groundLevel) {
       this.vy = 0;
-      this.jumping = false;
       this.isJumping = false;
-      this.movement = "idle";
+      this.vyHasBeenSet = false;
       this.jumpSoundPlayed = false;
       this.y = this.groundLevel;
+      this.state = "idle";
     }
 
+    // Apply deceleration to the hero's speed while jumping
     if (this.speed > 0) {
-      this.speed *= this.jumpingDeceleration;
+      this.speed *= this.isJumpingDeceleration;
+    }
 
-      if (this.speed < this.initialSpeed) {
-        this.speed = 0;
-      }
+    // Ensure speed does not drop below initial speed
+    if (this.speed < this.initialSpeed) {
+      this.speed = 0;
     }
   }
 
+  /**
+   * Handles the falling mechanics of the hero.
+   *
+   * Updates the vertical position and velocity based on gravity.
+   * Resets the hero's state when it hits the ground.
+   */
   fall() {
-    // console.log("Fall method called");
-    // console.log("Vertical velocity (vy):", this.vy);
-    // console.log("Current Y position:", this.y);
-    // console.log("Ground level:", this.groundLevel);
-
+    // Increase vertical velocity by gravity
     this.vy += this.gravity;
+
+    // Update vertical position by vertical velocity
     this.y += this.vy;
 
+    // Check if the hero has hit the ground
     if (this.y > this.groundLevel) {
-      // console.log("Hit the ground");
+      // Reset vertical position to ground level
       this.y = this.groundLevel;
+
+      // Reset falling state
       this.isFallingFromObstacle = false;
+
+      // Reset vertical velocity
       this.vy = 0;
     }
   }
 
-  handleStateChange(type) {
-    // console.log("handleStateChange", type);
+  /**
+   * Handles the type change of the hero character.
+   *
+   * This function updates the hero's attributes based on the type specified.
+   * It adjusts the hero's dimensions, ground level, sprite settings, and jump sound.
+   *
+   * @param {string} type - The new type of the hero. Can be "small", "big", or "Fire".
+   */
+  handleTypeChange(type) {
+    // Reset the mushroom state
     this.hasJustTookMushroom = false;
+    this.type = type;
+    // Switch between different hero types
     switch (type) {
       case "small":
+        // Set attributes for small type
         this.currentJumpSound = this.jumpSmallSound;
-
         this.height = 35;
         this.width = 35;
-        this.y = 437 - this.height;
+        this.y = this.groundY - this.height;
         this.originalGroundLevel = this.y;
         this.groundLevel = this.y;
         this.sy = 32;
         this.spriteHeight = 16;
-        this.type = "small";
         break;
       case "big":
+        // Set attributes for big type
         this.height = 70;
         this.width = 35;
-        this.y = 437 - this.height;
+        this.y = this.groundY - this.height;
         this.groundLevel = this.y;
         this.originalGroundLevel = this.y;
         this.currentJumpSound = this.jumpBigSound;
-
         this.sy = 0;
         this.spriteHeight = 32;
-        this.type = "big";
-        break;
-      case "Fire":
-        this.height = 70;
-        this.width = 35;
-        this.y = 437 - this.height;
-        this.groundLevel = this.y;
-        this.originalGroundLevel = this.y;
-        this.currentJumpSound = this.jumpBigSound;
-
-        this.sy = 96;
-        this.spriteHeight = 32;
-        this.type = "Fire";
         break;
     }
   }
 
-  animate() {
+  /**
+   * Animates the running state of the hero.
+   *
+   * Updates the frame index based on the time per frame.
+   * Resets the frame index if it exceeds the number of frames.
+   */
+  animateRunning() {
     if (Date.now() - this.lastUpdate >= this.timePerFrame) {
       this.runningFrameIndex = (this.runningFrameIndex + 1) % 3;
       this.lastUpdate = Date.now();
     }
   }
 
+  /**
+   * Checks if the hero is colliding with a given sprite.
+   *
+   * This function determines if the hero's bounding box intersects with the bounding box of the provided sprite.
+   *
+   * @param {Object} sprite - The sprite to check for collision with.
+   * @returns {boolean} - Returns true if the hero is colliding with the sprite, otherwise false.
+   */
   isColliding(sprite) {
     return (
       this.x < sprite.x + sprite.width &&
@@ -474,13 +576,11 @@ class Hero extends Sprite {
     );
   }
 
-  // animateClimbingFlag() {
-  //   if (Date.now() - this.climbingLastUpdate >= this.timePerFrame) {
-  //     this.climbingFrameIndex = (this.climbingFrameIndex + 1) % 2;
-  //     this.climbingLastUpdate = Date.now();
-  //   }
-  // }
-
+  /**
+   * Draws the hero on the canvas.
+   *
+   * @param {CanvasRenderingContext2D} ctx - The drawing context on the canvas.
+   */
   draw(ctx) {
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(
@@ -496,16 +596,28 @@ class Hero extends Sprite {
     );
   }
 
-  //function to tell from which side of the obstacle the hero is colliding with
+  /**
+   * Determines the side of collision between the hero and an obstacle.
+   *
+   * This function calculates the center points of both the hero and the obstacle,
+   * then determines the overlap in both the x and y directions. Based on the
+   * overlap, it identifies whether the collision is horizontal or vertical and
+   * adjusts the hero's position accordingly.
+   *
+   * @param {Object} obstacle - The obstacle with which the hero is colliding.
+   */
   handleCollision(obstacle) {
+    // Calculate the center points of the hero and the obstacle
     let heroCenterX = this.x + this.width / 2;
     let heroCenterY = this.y + this.height / 2;
     let obstacleCenterX = obstacle.x + obstacle.width / 2;
     let obstacleCenterY = obstacle.y + obstacle.height / 2;
 
+    // Calculate the differences in the x and y directions
     let deltaX = heroCenterX - obstacleCenterX;
     let deltaY = heroCenterY - obstacleCenterY;
 
+    // Calculate the overlap in the x and y directions
     let overlapX = this.width / 2 + obstacle.width / 2 - Math.abs(deltaX);
     let overlapY = this.height / 2 + obstacle.height / 2 - Math.abs(deltaY);
 
@@ -514,11 +626,13 @@ class Hero extends Sprite {
       if (overlapX < overlapY) {
         // Horizontal Collision
         if (deltaX > 0) {
+          // Hero is colliding from the left side of the obstacle
           this.x = obstacle.x + obstacle.width;
         } else {
+          // Hero is colliding from the right side of the obstacle
           this.x = obstacle.x - this.width;
         }
-        this.speed = 0;
+        this.speed = 0; // Stop the hero's horizontal movement
       } else {
         // Vertical Collision
         if (deltaY > 0) {
@@ -533,60 +647,92 @@ class Hero extends Sprite {
     }
   }
 
+  /**
+   * Handles the hero landing on top of an obstacle.
+   *
+   * This function adjusts the hero's position to be on top of the obstacle,
+   * updates the ground level, and resets the vertical velocity and jumping state.
+   *
+   * @param {Object} obstacle - The obstacle on which the hero has landed.
+   */
   handleLandingOnTop(obstacle) {
-    // console.log("Landed on top of obstacle");
     this.y = obstacle.y - this.height;
     this.groundLevel = obstacle.y - this.height;
     this.vy = 0;
-    this.jumping = false;
+    this.isJumping = false;
   }
 
+  /**
+   * Handles the hero hitting the bottom of an obstacle.
+   *
+   * This function adjusts the hero's position to be below the obstacle,
+   * resets the vertical velocity, and marks the obstacle as collided from below.
+   *
+   * @param {Object} obstacle - The obstacle that the hero has hit from below.
+   */
   handleHittingBottom(obstacle) {
     this.y = obstacle.y + obstacle.height;
     this.vy = 0;
     obstacle.isCollidedFromBelow = true;
   }
 
-  reset() {
-    this.type = "small";
-    this.height = 35;
-    this.width = 35;
-    this.x = 0;
-    this.y = this.GroundY - this.height;
-    this.speed = 0;
-    this.movement = "idle";
-    this.currentJumpSound = this.jumpSmallSound;
-
-    this.originalGroundLevel = this.y;
-    this.groundLevel = this.y;
-    this.sy = 32;
-    this.spriteHeight = 16;
+  makeInvincible() {
+    // Check if the Enemy is colliding with the hero
+    const currentTime = Date.now();
+    // Check if the hero can be hit (based on cooldown)
+    if (
+      !this.lastHitTime ||
+      currentTime - this.lastHitTime >= this.hitCooldown
+    ) {
+      this.hasJustBeenHit = true; // Mark the hero as just hit
+      this.lastHitTime = currentTime; // Update the last hit time
+    }
   }
 }
 
 class WinningArea extends Sprite {
   constructor(x, y, width, height) {
     super();
+
+    // Position
     this.x = x;
     this.y = y;
+
+    // Dimensions
     this.width = width;
     this.height = height;
-    this.currentImage = new Image();
-    this.currentImage.src = "../sprites/player.png";
   }
 
   update(sprites, keys) {
+    // Check if the sprite is marked for removal
     if (this.markForRemoval) return true;
+
+    // Find the hero sprite
     let hero = sprites.find((sprite) => sprite instanceof Hero);
+
+    // Find the background sprite
+    let background = sprites.find((sprite) => sprite instanceof Background);
+
+    // Make the winning area appear to stay in place when hero moves
     if (hero.direction === "right") {
       this.x -= 2 * hero.speed;
     }
+
+    // Check if the hero is colliding with the winning area
     if (this.isColliding(hero)) {
-      // console.log("Winning area collided with hero");
-      hero.levelFinished = true;
+      hero.levelFinished = true; // Mark the level as finished for the hero
+      background.stopAudio = true; // Stop the background audio
     }
   }
 
+  /**
+   * Checks if the winning area is colliding with a given sprite.
+   *
+   * This function determines if the winning area's bounding box intersects with the bounding box of the provided sprite.
+   *
+   * @param {Object} sprite - The sprite to check for collision with.
+   * @returns {boolean} - Returns true if the winning area is colliding with the sprite, otherwise false.
+   */
   isColliding(sprite) {
     return (
       this.x < sprite.x + sprite.width &&
@@ -596,6 +742,9 @@ class WinningArea extends Sprite {
     );
   }
 
+  /**
+   * Draws the winning area on the canvas.
+   */
   draw(ctx) {
     ctx.fillStyle = "rgba(0, 255, 0, 0.5)"; // Semi-transparent green
     ctx.fillRect(this.x, this.y, this.width, this.height);
