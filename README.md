@@ -48,6 +48,3 @@ This project is a recreation of the classic Super Mario platformer, and it's the
 
 > **Note:** This is the first game I ever made, so feedback and suggestions are welcome!
 
-## License
-
-[MIT](LICENSE)
